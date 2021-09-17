@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <ucontext.h>
-namespace go
+namespace gocpp
 {
     /*
     Encapsulates the user space context (registers and stack) associated with a given coroutine.

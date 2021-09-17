@@ -3,7 +3,7 @@
 #include "Processor.h"
 #include "Context.h"
 
-namespace go
+namespace gocpp
 {
 
     class Executor;
@@ -46,4 +46,4 @@ namespace go
         void runActiveRoutine();
     };
 
-} // end namespace go
+} // end namespace gocpp

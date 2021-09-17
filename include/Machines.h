@@ -12,12 +12,11 @@
 
 #include "Processor.h"
 #include "Executor.h"
+#include "Defer.h"
 
-#define GO(func, args...) go::Machines::getInstance()->submitRoutine(func, args);
-#define GO_NO_ARGS(func) go::Machines::getInstance()->submitRoutine(func);
-#define GO_END go::Machines::getInstance()->finalize();
+#define GO_END gocpp::Machines::getInstance()->finalize();
 
-namespace go
+namespace gocpp
 {
     // Singleton class to store top level library instance information including
     // processors and executor instances
@@ -87,7 +86,6 @@ namespace go
         static void sigUsrHandler(int signal);
         static void timerInterruptHandler(int sig, siginfo_t *si, void *uc);
     };
-
     template <typename Lock>
     class SpinYieldLock
     {
@@ -112,4 +110,10 @@ namespace go
             m_lock.unlock();
         }
     };
+}
+
+template <typename Fn, typename... Args>
+void go(Fn &&fn, Args &&...args)
+{
+    gocpp::Machines::getInstance()->submitRoutine(std::forward<Fn>(fn), std::forward<Args>(args)...);
 }

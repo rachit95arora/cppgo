@@ -3,7 +3,7 @@
 #include <thread>
 #include <pthread.h>
 
-namespace go
+namespace gocpp
 {
 // Constants and macros relevant for the go runtime
 

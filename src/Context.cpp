@@ -3,7 +3,7 @@
 
 #include <assert.h>
 
-namespace go
+namespace gocpp
 {
     Context::Context(const ContextType contextType, Context *nextContext)
     {

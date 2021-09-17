@@ -4,7 +4,7 @@
 #include "Machines.h"
 #include "Context.h"
 
-namespace go
+namespace gocpp
 {
     Routine::Routine(std::packaged_task<void(void)> &&task)
     {

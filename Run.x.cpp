@@ -2,7 +2,7 @@
 
 #include "Machines.h"
 #include "Channel.h"
-using namespace go;
+using namespace gocpp;
 int main()
 {
     std::cout << std::thread::hardware_concurrency() << std::endl;
@@ -21,11 +21,16 @@ int main()
     {
         //sleep(1);
         std::cout << TID << " : Nesting " << id << "!\n";
-        GO(routine, id);
+        go(routine, id);
     };
 
     auto writerRoutine = [&](Channel<uint64_t> *channel)
     {
+        defer(
+            {
+                std::cout << TID << " ] Writes complete, closing channel!\n";
+                channel->close();
+            });
         for (uint64_t i = 1; i < 0xFFFFFF; i++)
         {
             if ((i & 0xFFFF) == 0)
@@ -34,7 +39,6 @@ int main()
                 (*channel) << i;
             }
         }
-        channel->close();
     };
     auto readerRoutine = [&](Channel<uint64_t> *channel)
     {
@@ -54,16 +58,16 @@ int main()
         }
     };
 
-    // GO(routine1, 1);
-    // GO(routine1, 2);
-    // GO(routine1, 3);
-    // GO(routine1, 4);
-    // GO(routine1, 5);
-    // GO(routine1, 6);
+    // go(routine1, 1);
+    // go(routine1, 2);
+    // go(routine1, 3);
+    // go(routine1, 4);
+    // go(routine1, 5);
+    // go(routine1, 6);
 
     auto channel = new Channel<uint64_t>();
-    GO(writerRoutine, channel);
-    GO(readerRoutine, channel);
+    go(writerRoutine, channel);
+    go(readerRoutine, channel);
 
     return 0;
 }

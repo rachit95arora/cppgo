@@ -6,7 +6,7 @@
 #include "Consts.h"
 #include "Context.h"
 
-namespace go
+namespace gocpp
 {
     /*
     This class encapsulates the [Go]Routine which is essentially a task function submitted by the user

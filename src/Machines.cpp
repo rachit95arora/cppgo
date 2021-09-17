@@ -1,7 +1,7 @@
 #include "Machines.h"
 #include <iostream>
 #include <chrono>
-namespace go
+namespace gocpp
 {
     Machines::Machines()
         : m_routine_list(), m_idleProcessors(MAX_PROCS), m_executors(MAX_PROCS)

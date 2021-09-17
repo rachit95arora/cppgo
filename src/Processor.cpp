@@ -1,7 +1,7 @@
 #include "Processor.h"
 #include "Machines.h"
 #include <iostream>
-namespace go
+namespace gocpp
 {
 
     bool Processor::surrenderRoutines(std::vector<RoutinePtr> &stolenRoutines)

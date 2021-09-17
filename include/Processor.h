@@ -3,7 +3,7 @@
 #include <mutex>
 
 #include "Routine.h"
-namespace go
+namespace gocpp
 {
     /*
     Class that encapsulates all the coroutines switching on each core/thread (executor).

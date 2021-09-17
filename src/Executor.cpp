@@ -2,7 +2,7 @@
 #include "Machines.h"
 #include <iostream>
 
-namespace go
+namespace gocpp
 {
 
     Executor::Executor(int id)
