@@ -1,5 +1,11 @@
 # cppgo: Go routine scheduling runtime and concurrency in C++
 
+## What's cppgo?
+
+This library is a stab at implementing some of the above Go runtime features (in an obviously limited manner) in C++ while exposing to users a similarly powerful  
+abstraction. It implements goroutine like user threads, channel conduits, select like channel dispatching, defer statements (and potentially more). Following section will
+describe the high level approach, tradeoffs and limitations of this implementation.
+
 ## Examples
 For someone coming from a baseline Golang knowledge, here are a few examples of the features supported by this library.
 
@@ -79,9 +85,3 @@ call which really are blocking for the user, do not actually waste much CPU time
 a blocking write on a single kernel thread would succeed due to goroutine scheduling.
 
 Goroutines, Channels, Select and other paradigms in Golang together create a very simple yet powerful and fast way to write concurrent efficient code.
-
-## What's cppgo?
-
-This library is a stab at implementing some of the above Go runtime features (in an obviously limited manner) in C++ while exposing to users a similarly powerful  
-abstraction. It implements goroutine like user threads, channel conduits, select like channel dispatching, defer statements (and potentially more). Following section will
-describe the high level approach, tradeoffs and limitations of this implementation.
