@@ -11,7 +11,7 @@ namespace gocpp
         struct SelectCase
         {
             virtual ~SelectCase() = default;
-            virtual bool operator()() const = 0;
+            virtual bool operator()(bool block) const = 0;
         };
         template <typename T>
         struct ReadCase : public SelectCase
@@ -24,9 +24,16 @@ namespace gocpp
             {
             }
 
-            bool operator()() const override
+            bool operator()(bool block) const override
             {
-                return m_chan->readNoBlock(*m_obj);
+                if (block)
+                {
+                    return m_chan->read(*m_obj);
+                }
+                else
+                {
+                    return m_chan->readNoBlock(*m_obj);
+                }
             }
         };
         template <typename T>
@@ -40,15 +47,22 @@ namespace gocpp
             {
             }
 
-            bool operator()() const override
+            bool operator()(bool block) const override
             {
-                return m_chan->writeNoBlock(*m_obj);
+                if (block)
+                {
+                    return m_chan->write(*m_obj);
+                }
+                else
+                {
+                    return m_chan->writeNoBlock(*m_obj);
+                }
             }
         };
 
         struct DefaultCase : public SelectCase
         {
-            bool operator()() const override
+            bool operator()(bool) const override
             {
                 return false;
             }
@@ -61,7 +75,7 @@ namespace gocpp
     public:
         struct CaseDescriptor
         {
-            detail::SelectCase* m_condition{nullptr};
+            detail::SelectCase *m_condition{nullptr};
             std::function<void()> m_callable;
             bool m_default{false};
 
@@ -96,25 +110,26 @@ namespace gocpp
 
         void operator()()
         {
+            bool block = not m_defaultCasePtr;
             while (true)
             {
                 for (auto &desc : m_cases)
                 {
-                    if ((*desc.m_condition)())
+                    if ((*desc.m_condition)(block))
                     {
                         desc.m_callable();
                         return;
                     }
                 }
 
-                if (m_defaultCasePtr)
+                if (block)
                 {
-                    m_defaultCasePtr->m_callable();
-                    return;
+                    Machines::yieldToScheduler();
                 }
                 else
                 {
-                    Machines::yieldToScheduler();
+                    m_defaultCasePtr->m_callable();
+                    return;
                 }
             }
         }

@@ -8,7 +8,6 @@ int main()
     std::cout << std::thread::hardware_concurrency() << std::endl;
     auto routine = [&](int id)
     {
-        //sleep(id);
         for (uint64_t i = 0; i < 0xFFFFFFF; i++)
         {
             if ((i & 0xFFFF) == 0)
@@ -19,7 +18,6 @@ int main()
     };
     auto routine1 = [&](int id)
     {
-        //sleep(1);
         std::cout << TID << " : Nesting " << id << "!\n";
         go(routine, id);
     };
@@ -81,10 +79,10 @@ int main()
     // go(routine1, 6);
 
     auto channel = new Channel<uint64_t>();
-    // go(writerRoutine, channel);
-    // go(readerRoutine, channel);
+    go(writerRoutine, channel);
+    go(readerRoutine, channel);
 
-    go(selfFeedingRoutine, channel);
+    // go(selfFeedingRoutine, channel);
 
     return 0;
 }
