@@ -1,7 +1,7 @@
 #pragma once
 
-#define _CONCAT(a, b) a##b
-#define _UID(name) _CONCAT(name, __COUNTER__)
+#include "Consts.h"
+
 #define defer(code) auto _UID(_defer_object_) = createScopeGuard([&]() { code; })
 namespace gocpp
 {

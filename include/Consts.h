@@ -3,6 +3,9 @@
 #include <thread>
 #include <pthread.h>
 
+#define _CONCAT(a, b) a##b
+#define _UID(name) _CONCAT(name, __COUNTER__)
+
 namespace gocpp
 {
 // Constants and macros relevant for the go runtime

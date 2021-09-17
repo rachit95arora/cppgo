@@ -6,8 +6,32 @@
 #include "Machines.h"
 namespace gocpp
 {
+
+    class ChannelBase
+    {
+    public:
+        virtual operator bool() = 0;
+    };
+
     template <typename T>
-    class Channel
+    class ReadChannel : virtual public ChannelBase
+    {
+    public:
+        virtual uint8_t readNoBlock(T &out) = 0;
+        virtual uint8_t read(T &out) = 0;
+    };
+
+    template <typename T>
+    class WriteChannel : virtual public ChannelBase
+    {
+    public:
+        virtual uint8_t writeNoBlock(const T &in) = 0;
+        virtual uint8_t write(const T &in) = 0;
+        virtual void close() = 0;
+    };
+
+    template <typename T>
+    class Channel : public ReadChannel<T>, public WriteChannel<T>
     {
     private:
         enum class State : uint8_t
@@ -36,7 +60,7 @@ namespace gocpp
         }
         static inline Channel EOC{};
 
-        uint8_t readNoBlock(T &out)
+        uint8_t readNoBlock(T &out) override
         {
             if (m_buffer_size != 0 and not m_buffered_data.empty())
             {
@@ -62,7 +86,7 @@ namespace gocpp
         }
 
         // read returns true if channel can still receive data
-        uint8_t read(T &out)
+        uint8_t read(T &out) override
         {
             while (true)
             {
@@ -79,7 +103,7 @@ namespace gocpp
             }
         }
 
-        uint8_t writeNoBlock(const T &in)
+        uint8_t writeNoBlock(const T &in) override
         {
             if (m_state == State::CLOSED)
             {
@@ -103,7 +127,7 @@ namespace gocpp
             return FAILURE;
         }
 
-        uint8_t write(const T &in)
+        uint8_t write(const T &in) override
         {
             while (true)
             {
@@ -125,30 +149,32 @@ namespace gocpp
             }
         }
 
-        void close()
+        void close() override
         {
             m_state = State::CLOSED;
         }
 
-        Channel &operator<<(const T &in)
-        {
-            write(in);
-            return *this;
-        }
-
-        Channel &operator>>(T &out)
-        {
-            if (not read(out))
-            {
-                return EOC;
-            }
-            return *this;
-        }
-
-        operator bool()
+        operator bool() override
         {
             return (this != &EOC);
         }
     };
+
+    template <typename T, template <typename> class WriteChannelType>
+    auto &operator<<(WriteChannelType<T> &ch, const T &in)
+    {
+        ch.write(in);
+        return ch;
+    }
+
+    template <typename T, template <typename> class ReadChannelType>
+    auto &operator>>(ReadChannelType<T> &ch, T &out)
+    {
+        if (not ch.read(out))
+        {
+            return Channel<T>::EOC;
+        }
+        return ch;
+    }
 
 }

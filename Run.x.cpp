@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "Machines.h"
-#include "Channel.h"
+#include "Select.h"
 using namespace gocpp;
 int main()
 {
@@ -58,6 +58,21 @@ int main()
         }
     };
 
+    auto selfFeedingRoutine = [&](Channel<uint64_t> *channel)
+    {
+        uint64_t k = 0;
+        for (uint64_t i = 1; i < 0xFF; i++)
+        {
+            std::cout << "Loop " << i << std::endl;
+            SelectEvaluator eval{
+                CASE((*channel) <= i, [&]()
+                     { std::cout << TID << " Wrote " << i << " to channel!\n"; }),
+                CASE((*channel) >= k, [&]()
+                     { std::cout << TID << " Read " << k << " from channel!\n"; })};
+            eval();
+        }
+    };
+
     // go(routine1, 1);
     // go(routine1, 2);
     // go(routine1, 3);
@@ -66,8 +81,10 @@ int main()
     // go(routine1, 6);
 
     auto channel = new Channel<uint64_t>();
-    go(writerRoutine, channel);
-    go(readerRoutine, channel);
+    // go(writerRoutine, channel);
+    // go(readerRoutine, channel);
+
+    go(selfFeedingRoutine, channel);
 
     return 0;
 }
