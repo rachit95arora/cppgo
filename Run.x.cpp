@@ -56,18 +56,19 @@ int main()
         }
     };
 
-    auto selfFeedingRoutine = [&](Channel<uint64_t> *channel)
+    auto selectRoutine = [&](Channel<uint64_t> *channelA, Channel<uint64_t> *channelB)
     {
-        uint64_t k = 0;
-        for (uint64_t i = 1; i < 0xFF; i++)
+        uint64_t k = 0, i = 0;
+        while (i < 100)
         {
-            std::cout << "Loop " << i << std::endl;
-            SelectEvaluator eval{
-                CASE((*channel) <= i, [&]()
-                     { std::cout << TID << " Wrote " << i << " to channel!\n"; }),
-                CASE((*channel) >= k, [&]()
-                     { std::cout << TID << " Read " << k << " from channel!\n"; })};
-            eval();
+            std::cout << "Loop " << ++i << std::endl;
+            Select{
+                Case((*channelA) >= k, [&]()
+                     { std::cout << TID << " Read " << k << " from channel A!\n"; }),
+                Case((*channelB) >= k, [&]()
+                     { std::cout << TID << " Read " << k << " from channel B!\n"; }),
+                DefaultCase([&]()
+                     { std::cout << TID << " Default case selected!\n"; })}();
         }
     };
 
@@ -78,11 +79,25 @@ int main()
     // go(routine1, 5);
     // go(routine1, 6);
 
-    auto channel = new Channel<uint64_t>();
-    go(writerRoutine, channel);
-    go(readerRoutine, channel);
+    auto channelA = new Channel<uint64_t>();
+    auto channelB = new Channel<uint64_t>();
+    // go(writerRoutine, channel);
+    // go(readerRoutine, channel);
 
-    // go(selfFeedingRoutine, channel);
+    go(selectRoutine, channelA, channelB);
+
+    for (uint64_t i = 0; i < 20; i++)
+    {
+        if (i & 1ul)
+        {
+            *channelB << i;
+        
+        }
+        else
+        {
+            *channelA << i;
+        }
+    }
 
     return 0;
 }

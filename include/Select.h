@@ -11,8 +11,10 @@ namespace gocpp
         struct SelectCase
         {
             virtual ~SelectCase() = default;
-            virtual bool operator()(bool block) const = 0;
+            virtual SelectCase *copy() = 0;
+            virtual bool operator()() const = 0;
         };
+
         template <typename T>
         struct ReadCase : public SelectCase
         {
@@ -24,18 +26,17 @@ namespace gocpp
             {
             }
 
-            bool operator()(bool block) const override
+            SelectCase *copy() override
             {
-                if (block)
-                {
-                    return m_chan->read(*m_obj);
-                }
-                else
-                {
-                    return m_chan->readNoBlock(*m_obj);
-                }
+                return new ReadCase(*this);
+            }
+
+            bool operator()() const override
+            {
+                return m_chan->readReady() and m_chan->read(*m_obj);
             }
         };
+
         template <typename T>
         struct WriteCase : public SelectCase
         {
@@ -47,59 +48,76 @@ namespace gocpp
             {
             }
 
-            bool operator()(bool block) const override
+            SelectCase *copy() override
             {
-                if (block)
-                {
-                    return m_chan->write(*m_obj);
-                }
-                else
-                {
-                    return m_chan->writeNoBlock(*m_obj);
-                }
+                return new WriteCase(*this);
+            }
+
+            bool operator()() const override
+            {
+                return m_chan->writeReady() and m_chan->write(*m_obj);
             }
         };
 
         struct DefaultCase : public SelectCase
         {
-            bool operator()(bool) const override
+            DefaultCase() = default;
+            SelectCase *copy() override
             {
+                return new DefaultCase(*this);
+            }
+
+            bool operator()() const override
+            {
+                // Never called!
+                assert(false);
                 return false;
             }
         };
     }
 
-    static inline detail::DefaultCase defaultCase{};
-    class SelectEvaluator
+    class Select
     {
     public:
         struct CaseDescriptor
         {
-            detail::SelectCase *m_condition{nullptr};
+            std::unique_ptr<detail::SelectCase> m_condition;
             std::function<void()> m_callable;
             bool m_default{false};
 
-            CaseDescriptor(const CaseDescriptor &other) = default;
-
             template <typename CaseCondition>
             CaseDescriptor(CaseCondition &&condition, std::function<void()> &&fn)
-                : m_condition(new CaseCondition(std::move(condition))), m_callable(std::move(fn)), m_default(std::is_same_v<CaseCondition, detail::DefaultCase>)
+                : m_condition(new CaseCondition(condition)), m_callable(std::move(fn)), m_default(std::is_same_v<CaseCondition, detail::DefaultCase>)
             {
+            }
+            CaseDescriptor() = default;
+
+            CaseDescriptor(const CaseDescriptor &other)
+                : m_condition(other.m_condition->copy()), m_callable(other.m_callable), m_default(other.m_default)
+            {
+            }
+
+            CaseDescriptor &operator=(const CaseDescriptor &other)
+            {
+                m_condition.reset(other.m_condition->copy());
+                m_callable = other.m_callable;
+                m_default = other.m_default;
+                return *this;
             }
         };
 
     public:
-        SelectEvaluator(std::initializer_list<CaseDescriptor> list)
+        Select(std::initializer_list<CaseDescriptor> list)
         {
             for (auto &desc : list)
             {
                 if (desc.m_default)
                 {
-                    if (m_defaultCasePtr)
+                    if (m_defaultCase.m_default)
                     {
                         throw std::runtime_error("Only one default case should be specified!");
                     }
-                    m_defaultCasePtr = std::make_unique<CaseDescriptor>(desc);
+                    m_defaultCase = desc;
                 }
                 else
                 {
@@ -110,25 +128,20 @@ namespace gocpp
 
         void operator()()
         {
-            bool block = not m_defaultCasePtr;
             while (true)
             {
                 for (auto &desc : m_cases)
                 {
-                    if ((*desc.m_condition)(block))
+                    if ((*desc.m_condition)())
                     {
                         desc.m_callable();
                         return;
                     }
                 }
 
-                if (block)
+                if (m_defaultCase.m_default)
                 {
-                    Machines::yieldToScheduler();
-                }
-                else
-                {
-                    m_defaultCasePtr->m_callable();
+                    m_defaultCase.m_callable();
                     return;
                 }
             }
@@ -136,10 +149,11 @@ namespace gocpp
 
     private:
         std::vector<CaseDescriptor> m_cases;
-        std::unique_ptr<CaseDescriptor> m_defaultCasePtr;
+        CaseDescriptor m_defaultCase{};
     };
 
-    using CASE = SelectEvaluator::CaseDescriptor;
+    using Case = Select::CaseDescriptor;
+    inline Case DefaultCase(std::function<void()> callable) { return Case(gocpp::detail::DefaultCase{}, std::move(callable)); }
 
     template <typename T, template <typename> class WriteChannelType>
     auto operator>=(const T &in, WriteChannelType<T> &ch)

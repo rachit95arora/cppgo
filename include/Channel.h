@@ -17,16 +17,16 @@ namespace gocpp
     class ReadChannel : virtual public ChannelBase
     {
     public:
-        virtual uint8_t readNoBlock(T &out) = 0;
-        virtual uint8_t read(T &out) = 0;
+        virtual bool readReady() = 0;
+        virtual bool read(T &out) = 0;
     };
 
     template <typename T>
     class WriteChannel : virtual public ChannelBase
     {
     public:
-        virtual uint8_t writeNoBlock(const T &in) = 0;
-        virtual uint8_t write(const T &in) = 0;
+        virtual bool writeReady() = 0;
+        virtual bool write(const T &in) = 0;
         virtual void close() = 0;
     };
 
@@ -34,78 +34,70 @@ namespace gocpp
     class Channel : public ReadChannel<T>, public WriteChannel<T>
     {
     private:
-        enum class State : uint8_t
+        // This state will be used to maintain read/write status across concurrent channel usage
+        enum State : uint8_t
         {
-            WRITE_READY,
-            READ_READY,
-            CLOSED
+            DEFAULT         = 0b0000,
+            WRITER_BLOCKING = 0b0001,
+            READER_BLOCKING = 0b0010,
+            WRITE_COMPLETE  = 0b0100,
+            CLOSED          = 0b1000
         };
 
         std::mutex m_lock;
         T m_data;
         const size_t m_buffer_size{0};
         std::deque<T> m_buffered_data;
-        std::atomic<State> m_state{State::WRITE_READY};
+        std::atomic<uint8_t> m_state{State::DEFAULT};
 
-    public:
-        enum ChannelRetMasks : uint8_t
+    private:
+        bool writeComplete()
         {
-            FAILURE = 0b0000,
-            SUCCESS = 0b0001,
-            BLOCK = 0b0010
-        };
-        Channel(size_t buffer_size = 0)
-            : m_buffer_size(buffer_size)
-        {
+            return m_state & State::WRITE_COMPLETE;
         }
-        static inline Channel EOC{};
 
-        uint8_t readNoBlock(T &out) override
+        bool closed()
         {
-            if (m_buffer_size != 0 and not m_buffered_data.empty())
+            return m_state & State::CLOSED;
+        }
+
+        void set(State st = State::DEFAULT)
+        {
+            m_state |= st;
+        }
+        void unset(State st)
+        {
+            m_state &= ~st;
+        }
+
+        bool readNoBlock(T &out)
+        {
+            if (not m_buffered_data.empty())
             {
                 SpinYieldLock<std::mutex> readLock(m_lock);
                 // Let's read
                 out = m_buffered_data.front();
                 m_buffered_data.pop_front();
-                return SUCCESS;
+                return true;
             }
-            else if (m_state == State::READ_READY)
+            else if (writeComplete())
             {
                 SpinYieldLock<std::mutex> readLock(m_lock);
                 // Let's read
                 out = m_data;
-                m_state = State::WRITE_READY;
-                return SUCCESS;
+                unset(State::WRITE_COMPLETE);
+                return true;
             }
-            else if (m_state == State::CLOSED)
+            else if (closed())
             {
                 out = T{};
             }
-            return FAILURE;
+            return false;
         }
 
-        // read returns true if channel can still receive data
-        uint8_t read(T &out) override
+        uint8_t writeNoBlock(const T &in)
         {
-            while (true)
-            {
-                if (readNoBlock(out) == SUCCESS)
-                {
-                    return SUCCESS;
-                }
-                else if (m_state == State::CLOSED)
-                {
-                    return FAILURE;
-                }
-                // Yield coro and wait
-                Machines::yieldToScheduler();
-            }
-        }
-
-        uint8_t writeNoBlock(const T &in) override
-        {
-            if (m_state == State::CLOSED)
+            if (closed())
             {
                 throw std::runtime_error("Attempted write on a closed channel!");
             }
@@ -114,35 +106,71 @@ namespace gocpp
                 SpinYieldLock<std::mutex> writeLock(m_lock);
                 // Let's write
                 m_buffered_data.emplace_back(in);
-                return SUCCESS;
+                return true;
             }
-            else if (m_state == State::WRITE_READY)
+            else if (!writeComplete())
             {
                 SpinYieldLock<std::mutex> writeLock(m_lock);
                 // Let's write
                 m_data = in;
-                m_state = State::READ_READY;
-                return SUCCESS | BLOCK;
+                set(State::WRITE_COMPLETE);
+                return true;
             }
-            return FAILURE;
+            return false;
         }
 
-        uint8_t write(const T &in) override
+    public:
+        Channel(size_t buffer_size = 0)
+            : m_buffer_size(buffer_size)
         {
+        }
+        static inline Channel EOC{};
+
+        bool readReady() override
+        {
+            return m_state & State::WRITER_BLOCKING;
+        }
+
+        bool writeReady() override
+        {
+            return m_state & State::READER_BLOCKING;
+        }
+
+        // read returns true if channel can still receive data
+        bool read(T &out) override
+        {
+            set(State::READER_BLOCKING);
             while (true)
             {
-                uint8_t ret = writeNoBlock(in);
-                if (ret != FAILURE)
+                if (readNoBlock(out))
                 {
-                    if (ret & BLOCK)
+                    unset(State::READER_BLOCKING);
+                    return true;
+                }
+                else if (closed())
+                {
+                    unset(State::READER_BLOCKING);
+                    return false;
+                }
+                // Yield coro and wait
+                Machines::yieldToScheduler();
+            }
+        }
+
+        bool write(const T &in) override
+        {
+            set(State::WRITER_BLOCKING);
+            while (true)
+            {
+                if (writeNoBlock(in))
+                {
+                    while (writeComplete())
                     {
-                        while (m_state != State::WRITE_READY)
-                        {
-                            // Yield coro and wait
-                            Machines::yieldToScheduler();
-                        }
+                        // Yield coro and wait
+                        Machines::yieldToScheduler();
                     }
-                    return SUCCESS;
+                    unset(State::WRITER_BLOCKING);
+                    return true;
                 }
                 // Yield coro and wait
                 Machines::yieldToScheduler();
