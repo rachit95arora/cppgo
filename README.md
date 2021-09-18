@@ -3,17 +3,19 @@
 ## What's cppgo?
 
 This library is a stab at implementing some of the above Go runtime features (in an obviously limited manner) in C++ while exposing to users a similarly powerful  
-abstraction. It implements goroutine like user threads, channel conduits, select like channel dispatching, defer statements (and potentially more). Following section will
-describe the high level approach, tradeoffs and limitations of this implementation.
+abstraction. It implements goroutine like user threads, channel conduits, select like channel dispatching, defer statements (and potentially more). Following sections will
+list a few examples, describe some Golang background and finally the high level approach, tradeoffs and limitations of this implementation.
 
 ## Examples
-For someone coming from a baseline Golang knowledge, here are a few examples of the features supported by this library.
+For someone coming from a baseline Golang knowledge, here are a few examples of the features supported by this library. For someone looking to read about these constructs in Golang,
+[Tour of Go](https://tour.golang.org/) might come handy!
 
 #### Goroutines, Channels and Defer
 ```
 // Callables (lambda/ functions to run)
     auto writerRoutine = [&](WriteChannel<uint64_t> *channel)
     {
+        // Notice the use of defer to execute cleanup code
         defer(
             {
                 std::cout << TID << " ] Writes complete, closing channel!\n";
@@ -54,22 +56,63 @@ For someone coming from a baseline Golang knowledge, here are a few examples of 
     go(readerRoutine, channel);
 
 ```
+
+#### Select
+```
+
+    // Tries to read from the two channels, executes default case otherwise
+    auto selectRoutine = [&](Channel<uint64_t> *channelA, Channel<uint64_t> *channelB)
+    {
+        uint64_t k = 0, i = 0;
+        while (i < 40)
+        {
+            std::cout << "Loop " << ++i << std::endl;
+            Select{
+                Case((*channelA) >= k, [&]()
+                     { std::cout << TID << " Read " << k << " from channel A!\n"; }),
+                Case((*channelB) >= k, [&]()
+                     { std::cout << TID << " Read " << k << " from channel B!\n"; }),
+                DefaultCase([&]()
+                     { std::cout << TID << " Default case selected!\n"; })}();
+        }
+    };
+
+    auto channelA = new Channel<uint64_t>();
+    auto channelB = new Channel<uint64_t>();
+    
+    go(selectRoutine, channelA, channelB);
+
+    // Write on the two channels for the select to read from alternately
+    for (uint64_t i = 0; i < 20; i++)
+    {
+        if (i & 1ul)
+        {
+            *channelB << i;
+        
+        }
+        else
+        {
+            *channelA << i;
+        }
+    }
+```
+
 ## Background
 
 Golang offers a somewhat unique abstraction for parallel computation in the form of goroutines and an equally salient method for communicating  
 between them via channels. Synchronization is also handled in part by the channel abstraction. All of this allows for a very simplified user experience  
-which is often felt missing in a language like C++
+which is often felt missing in a language like C++.  
 
-The Golang goroutines are not kernel threads and in fact are just lightweight stacks and contexts that are scheduled on the available kernel threads.  
+The Golang goroutines are not kernel threads and in fact are just lightweight stacks and contexts that are scheduled on the available kernel threads. 
 Therefore unlike C++ std::thread (or pthread) which employ the kernel scheduling system for switching, goroutines are infact really coroutines that  
 are being switched in the user space over actual kernel threads via the Golang runtime in a many to many (M:N) threading model.  
 
-This is achieved via a combination of:
-* Cooperation : Goroutines yield to runtime scheduler upon encountering function calls
-* Preemption: For misbehaving goroutines, timer signals preempt the core back to the scheduler runtime
+This is achieved via a combination of:  
+* Cooperation : Goroutines yield to runtime scheduler upon encountering function calls  
+* Preemption : For misbehaving goroutines, timer signals preempt the core back to the scheduler runtime
 
 Therefore several 100s or even 1000s of goroutines can be submitted to the golang runtime (apparently Go devs are notorious for this), while only really
-having very few logical cores for their execution. Since user space context switching is significantly cheaper than a kernel space switch, Goroutines are  
+having very few logical cores for their execution. Since user space context switching is significantly cheaper than kernel space switching, Goroutines are  
 performant.
 
 The scheduler runtime contains an abstraction of core (kernel thread) of execution called Machine (M). Each machine tries to acquire a Processor (P).
@@ -80,8 +123,8 @@ Furthermore it is possible for idle machines to **steal** routines from other ma
 subsystem. It is designed this way, among other reasons, to allow for efficient routine execution. A machine that is about to execute a blocking network  
 or system call, yields its processor (LRQ) for other machines to execute from, so a blocking kernel thread only really blocks the routine requesting it.
 Lastly not all IO needs to be blocking in Go, and for IO that can be asynchronous (like some network calls or channel read/writes), Go runtime is very  
-efficient as it swaps out a waiting routine into the local wait queue, while executing the next runnable routine. Therefore a channel read and write which  
-call which really are blocking for the user, do not actually waste much CPU time as they are swapped intelligently. Infact a seemingly blocking read, followed by
-a blocking write on a single kernel thread would succeed due to goroutine scheduling.
+efficient as it swaps out a waiting routine into the local wait queue, while executing the next runnable routine. Therefore a channel read and write  
+which really are blocking for the user, do not actually waste much CPU time as they are swapped intelligently. Infact a seemingly blocking read, followed  
+by a blocking write on a single kernel thread would succeed due to goroutine scheduling.
 
 Goroutines, Channels, Select and other paradigms in Golang together create a very simple yet powerful and fast way to write concurrent efficient code.
