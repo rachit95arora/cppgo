@@ -12,39 +12,75 @@ For someone coming from a baseline Golang knowledge, here are a few examples of 
 [Tour of Go](https://tour.golang.org/) might come handy!
 
 #### Goroutines, Channels and Defer
+
+Go code
+```go
+func writerRoutine(ch chan int) {
+	defer fmt.Println("Writes complete, closing channel!")
+	defer close(ch)
+
+	for i := 0; i < 0xFFFFFF; i++ {
+		if i&0xFFFF == 0 {
+			fmt.Println("Writing ", i, " to channel!")
+			ch <- i
+		}
+	}
+}
+
+func readerRoutine(ch chan int) {
+	for {
+		fmt.Println("Read started")
+		val, ok := <-ch
+		if ok {
+			fmt.Println("Read ", val, " from channel!")
+		} else {
+			fmt.Println("Reads complete, channel closed!")
+			return
+		}
+	}
+}
+
+func main() {
+	ch := make(chan int)
+	go writerRoutine(ch)
+	readerRoutine(ch)
+}
+
 ```
+
+Analogous C++ code
+```cpp
 // Callables (lambda/ functions to run)
-    auto writerRoutine = [&](WriteChannel<uint64_t> *channel)
+    auto writerRoutine = [&](Channel<uint64_t> *channel)
     {
-        // Notice the use of defer to execute cleanup code
+        // Notice the use of defer to run cleanup code block
         defer(
             {
-                std::cout << TID << " ] Writes complete, closing channel!\n";
+                std::cout << "Writes complete, closing channel!\n";
                 channel->close();
             });
         for (uint64_t i = 1; i < 0xFFFFFF; i++)
         {
             if ((i & 0xFFFF) == 0)
             {
-                std::cout << TID << " ] Writing " << i << " to channel!\n";
-                (*channel) << i;
+                std::cout << "Writing " << i << " to channel!\n";
+                *channel << i;
             }
         }
     };
-
-    auto readerRoutine = [&](ReadChannel<uint64_t> *channel)
+    auto readerRoutine = [&](Channel<uint64_t> *channel)
     {
         while (true)
         {
             uint64_t read = 0;
-            std::cout << TID << " ] Read started!\n";
-            if ((*channel) >> read)
+            std::cout << "Read started!\n";
+            if (*channel >> read)
             {
-                std::cout << TID << " ] Read " << read << " from channel!\n";
+                std::cout << "Read " << read << " from channel!\n";
             }
             else
             {
-                std::cout << TID << " ] Reads complete, channel closed!\n";
+                std::cout << "Reads complete, channel closed!\n";
                 return;
             }
         }
@@ -61,7 +97,7 @@ For someone coming from a baseline Golang knowledge, here are a few examples of 
 
 #### Select
 
-```
+```cpp
 
     // Tries to read from the two channels, executes default case otherwise
     auto selectRoutine = [&](Channel<uint64_t> *channelA, Channel<uint64_t> *channelB)
@@ -99,6 +135,8 @@ For someone coming from a baseline Golang knowledge, here are a few examples of 
         }
     }
 ```
+**Caveat**: Do observe that channel operations inside a Select, use the `<=` and `=>` operators instead of the `<<` and `>>` stream operators used outside of
+select. This is **intentional** to keep coding style as similar to golang as possible while allowing Select to work on the list of channels as "descriptors".
 
 ## Background
 

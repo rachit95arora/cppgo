@@ -37,11 +37,11 @@ namespace gocpp
         // This state will be used to maintain read/write status across concurrent channel usage
         enum State : uint8_t
         {
-            DEFAULT         = 0b0000,
+            DEFAULT = 0b0000,
             WRITER_BLOCKING = 0b0001,
             READER_BLOCKING = 0b0010,
-            WRITE_COMPLETE  = 0b0100,
-            CLOSED          = 0b1000
+            WRITE_COMPLETE = 0b0100,
+            CLOSED = 0b1000
         };
 
         std::mutex m_lock;
@@ -124,6 +124,10 @@ namespace gocpp
             : m_buffer_size(buffer_size)
         {
         }
+
+        Channel(const Channel &other) = delete;
+        Channel(Channel &&other) = delete;
+
         static inline Channel EOC{};
 
         bool readReady() override
