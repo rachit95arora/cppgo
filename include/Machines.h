@@ -15,6 +15,7 @@
 #include "Defer.h"
 
 #define GO_END gocpp::Machines::getInstance()->finalize();
+#define BLOCKER(code) gocpp::Machines::yieldRoutinesAndProcessor();code;
 
 namespace gocpp
 {
@@ -83,6 +84,7 @@ namespace gocpp
         static void scheduleNext();
 
         static void yieldToScheduler();
+        static void yieldRoutinesAndProcessor();
         static void sigUsrHandler(int signal);
         static void timerInterruptHandler(int sig, siginfo_t *si, void *uc);
     };

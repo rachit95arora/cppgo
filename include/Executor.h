@@ -37,6 +37,8 @@ namespace gocpp
 
         void finalize() { m_running = false; }
 
+        void yieldProcessor(ProcessorPtr& proc); 
+
         void scheduleLoop();
 
         void switchToScheduler();

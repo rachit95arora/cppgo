@@ -4,10 +4,10 @@
 namespace gocpp
 {
 
-    bool Processor::surrenderRoutines(std::vector<RoutinePtr> &stolenRoutines)
+    bool Processor::surrenderRoutines(std::vector<RoutinePtr> &stolenRoutines, bool all)
     {
         std::unique_lock<std::mutex> lock(m_lock);
-        size_t routinesToLeave = (1 + m_routines.size()) >> 1;
+        size_t routinesToLeave = all ? 0 : (1 + m_routines.size()) >> 1;
         size_t routinesToSurrender = m_routines.size() - routinesToLeave;
         while (m_routines.size() > routinesToLeave)
         {

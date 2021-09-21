@@ -169,3 +169,16 @@ which really are blocking for the user, do not actually waste much CPU time as t
 by a blocking write on a single kernel thread would succeed due to goroutine scheduling.
 
 Goroutines, Channels, Select and other paradigms in Golang together create a very simple yet powerful and fast way to write concurrent efficient code.
+
+## Library design
+
+The library is designed to allow users to write their goroutine functions in an agnostic manner like Go, removing the possibility of cooperative yielding. We
+therefore leverage Unix timer signals (SIGRTMIN) to launch a preemption of running coroutines and execution of scheduler coroutine across all the running
+threads. The coroutines themselves are implemented using ucontext_t, each with a separate stack which can be configured with **GOSTACKSIZE**.
+The coroutines are preempted by signals or exit to execute the scheduler coroutine and run across all library threads in a many to many fashion. New coroutines
+are submitted to the current Processor's LRQ (if applicable) or to the global queue from the main thread. Idle machine threads try to steal coroutines from the
+global queue or other threads' LRQs.
+
+This design adds opportunity to utilize CPU time more effectively than blocking on an operation (lock or network), and a coroutine can be switched out when its waiting
+freeing up the CPU for some other runnable routine. This allows for implementation of Go like Channels in this library, that are blocking in the coroutine for the user
+but never block the underlying CPU/thread.

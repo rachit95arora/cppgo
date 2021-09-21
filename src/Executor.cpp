@@ -84,6 +84,12 @@ namespace gocpp
         }
     }
 
+    void Executor::yieldProcessor(ProcessorPtr& proc)
+    {
+        proc.swap(m_processor); 
+        m_processor.reset();
+    }
+
     void Executor::runActiveRoutine()
     {
         if (m_active_routine)

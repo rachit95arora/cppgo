@@ -175,6 +175,29 @@ namespace gocpp
         }
     }
 
+    void Machines::yieldRoutinesAndProcessor()
+    {
+        auto threadId = std::this_thread::get_id();
+        auto* machine = Machines::getInstance();
+        if (threadId != s_main_thread_id)
+        {
+            auto &executorPtr = machine->m_executors[threadId];
+            ProcessorPtr proc;
+            executorPtr->yieldProcessor(proc);
+            if (proc)
+            {
+                std::unique_lock<std::mutex> routineLock(machine->m_routine_lock);
+                proc->surrenderRoutines(machine->m_routine_list, true);
+                std::unique_lock<std::mutex> procLock(machine->m_processors_lock);
+                machine->m_idleProcessors.emplace_back(std::move(proc));
+            }
+        }
+        else
+        {
+            assert(false);
+        }
+    }
+
     void Machines::sigUsrHandler(int signal)
     {
         yieldToScheduler();

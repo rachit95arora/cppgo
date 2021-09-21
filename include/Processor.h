@@ -36,7 +36,7 @@ namespace gocpp
         bool hasRoutines(bool coreIdle = true);
 
         // Allows other cores to steal half of this processor's routines in a concurrent safe manner
-        bool surrenderRoutines(std::vector<RoutinePtr> &stolenRoutines);
+        bool surrenderRoutines(std::vector<RoutinePtr> &stolenRoutines, bool all = false);
 
         // Returns a next routine to run on the core, swaps out current routine (if present) to the back of the queue
         // to be resumed later
